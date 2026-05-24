@@ -8,3 +8,4 @@ venv/
 # Opcional: si no quieres subir evidencia real de pruebas
 logs.json
 clients.json
+rules.json
