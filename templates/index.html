@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Controlador SDN Firewall</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #1f2937;
+        }
+
+        h2 {
+            color: #374151;
+            margin-top: 30px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        input, select, button {
+            padding: 8px;
+            margin-top: 5px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 15px;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+
+        th, td {
+            border: 1px solid #d1d5db;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background: #e5e7eb;
+        }
+
+        .ALLOW {
+            color: green;
+            font-weight: bold;
+        }
+
+        .BLOCK {
+            color: red;
+            font-weight: bold;
+        }
+
+        .REPORT {
+            color: orange;
+            font-weight: bold;
+        }
+
+        .logs {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #111827;
+            color: #d1d5db;
+            padding: 10px;
+            font-family: Consolas, monospace;
+            font-size: 13px;
+        }
+        .delete-btn {
+            background: #dc2626;
+        }
+
+        .delete-btn:hover {
+            background: #b91c1c;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Controlador SDN con Firewall</h1>
+
+    <div class="card">
+        <h2>Agregar regla</h2>
+
+        <label>IP origen</label>
+        <input id="src_ip" value="ANY">
+
+        <label>Cliente destino</label>
+        <select id="dst_client" onchange="updateDstIpFromClient()">
+            <option value="ANY">ANY</option>
+        </select>
+
+        <label>IP destino</label>
+        <input id="dst_ip" value="ANY">
+
+        <label>Protocolo</label>
+        <select id="protocol">
+            <option value="UDP">UDP</option>
+            <option value="TCP">TCP</option>
+            <option value="ANY">ANY</option>
+        </select>
+
+        <label>Puerto</label>
+        <input id="port" type="number" value="6000">
+
+        <label>Acción</label>
+        <select id="action">
+            <option value="ALLOW">ALLOW</option>
+            <option value="BLOCK">BLOCK</option>
+            <option value="REPORT">REPORT</option>
+        </select>
+
+        <label>Prioridad</label>
+        <input id="priority" type="number" value="1">
+
+        <button onclick="addRule()">Agregar regla</button>
+    </div>
+
+    <div class="card">
+        <h2>Clientes registrados</h2>
+        <button onclick="loadClients()">Actualizar clientes</button>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>IP</th>
+                    <th>Estado</th>
+                    <th>Última comunicación</th>
+                </tr>
+            </thead>
+            <tbody id="clients_table"></tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>Reglas activas</h2>
+        <button onclick="loadRules()">Actualizar reglas</button>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Origen</th>
+                    <th>Destino</th>
+                    <th>Protocolo</th>
+                    <th>Puerto</th>
+                    <th>Acción</th>
+                    <th>Prioridad</th>
+                    <th>Coincidencias</th>
+                    <th>Eliminar</th>
+                </tr>
+            </thead>
+            <tbody id="rules_table"></tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>Logs / Reportes</h2>
+        <button onclick="loadLogs()">Actualizar logs</button>
+        <div id="logs" class="logs"></div>
+    </div>
+
+<script>
+    async function loadClients() {
+        const response = await fetch('/clients');
+        const clients = await response.json();
+
+        const table = document.getElementById('clients_table');
+        table.innerHTML = '';
+
+        clients.forEach(client => {
+            table.innerHTML += `
+                <tr>
+                    <td>${client.name}</td>
+                    <td>${client.ip}</td>
+                    <td>${client.status}</td>
+                    <td>${client.last_seen}</td>
+                </tr>
+            `;
+        });
+    }
+
+    async function loadRules() {
+    const response = await fetch('/rules');
+    const rules = await response.json();
+
+    const table = document.getElementById('rules_table');
+    table.innerHTML = '';
+
+    rules.forEach(rule => {
+        table.innerHTML += `
+            <tr>
+                <td>${rule.id}</td>
+                <td>${rule.src_ip}</td>
+                <td>${rule.dst_ip}</td>
+                <td>${rule.protocol}</td>
+                <td>${rule.port}</td>
+                <td class="${rule.action}">${rule.action}</td>
+                <td>${rule.priority}</td>
+                <td>${rule.matches || 0}</td>
+                <td>
+                    <button class="delete-btn" onclick="deleteRule(${rule.id})">
+                        Eliminar
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+}
+    
+    async function deleteRule(ruleId) {
+        const confirmDelete = confirm(`¿Seguro que deseas eliminar la regla ${ruleId}?`);
+
+        if (!confirmDelete) {
+            return;
+        }
+
+        const response = await fetch(`/rules/${ruleId}`, {
+            method: 'DELETE'
+        });
+
+        const result = await response.json();
+
+        alert(result.message);
+
+        loadRules();
+    }
+    async function loadClientSelector() {
+    const selector = document.getElementById('dst_client');
+
+    // Guardar selección actual antes de reconstruir el selector
+    const selectedValue = selector.value;
+
+    const response = await fetch('/clients');
+    const clients = await response.json();
+
+    selector.innerHTML = '<option value="ANY">ANY</option>';
+
+    clients.forEach(client => {
+        selector.innerHTML += `
+            <option value="${client.ip}">
+                ${client.name} - ${client.ip}
+            </option>
+        `;
+    });
+
+    // Restaurar selección anterior si todavía existe
+    const exists = Array.from(selector.options).some(
+        option => option.value === selectedValue
+    );
+
+    if (exists) {
+        selector.value = selectedValue;
+    } else {
+        selector.value = "ANY";
+    }
+
+    updateDstIpFromClient();
+}
+function updateDstIpFromClient() {
+    const selectedIp = document.getElementById('dst_client').value;
+    document.getElementById('dst_ip').value = selectedIp;
+}
+
+    async function loadLogs() {
+        const response = await fetch('/logs');
+        const logs = await response.json();
+
+        const logsDiv = document.getElementById('logs');
+        logsDiv.innerHTML = '';
+
+        logs.slice().reverse().forEach(log => {
+            logsDiv.innerHTML += `
+                <div>
+                    [${log.time}] ${log.client}: ${log.message}
+                </div>
+            `;
+        });
+    }
+
+
+    async function addRule() {
+    const rule = {
+        src_ip: document.getElementById('src_ip').value,
+        dst_ip: document.getElementById('dst_ip').value,
+        protocol: document.getElementById('protocol').value,
+        port: parseInt(document.getElementById('port').value),
+        action: document.getElementById('action').value,
+        priority: parseInt(document.getElementById('priority').value)
+    };
+
+    const response = await fetch('/rules', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(rule)
+    });
+
+    const result = await response.json();
+
+    alert(result.message);
+
+    resetRuleForm();
+    loadRules();
+    }
+    async function resetRuleForm() {
+        const response = await fetch('/server-info');
+        const data = await response.json();
+
+        document.getElementById('src_ip').value = data.server_ip;
+        document.getElementById('dst_client').value = "ANY";
+        document.getElementById('dst_ip').value = "ANY";
+        document.getElementById('protocol').value = "UDP";
+        document.getElementById('port').value = 6000;
+        document.getElementById('action').value = "ALLOW";
+        document.getElementById('priority').value = 1;
+    }
+
+    loadClientSelector();
+    resetRuleForm();
+    loadClients();
+    loadRules();
+    loadLogs();
+
+    setInterval(loadClients, 5000);
+    setInterval(loadRules, 5000);
+    setInterval(loadLogs, 3000);
+</script>
+
+</body>
+</html>

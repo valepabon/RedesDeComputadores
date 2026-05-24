@@ -1,0 +1,42 @@
+[
+    {
+        "id": 1,
+        "src_ip": "ANY",
+        "dst_ip": "ANY",
+        "protocol": "UDP",
+        "port": 6000,
+        "action": "ALLOW",
+        "priority": 1,
+        "matches": 0
+    },
+    {
+        "id": 3,
+        "src_ip": "192.168.1.41",
+        "dst_ip": "192.168.1.53",
+        "protocol": "UDP",
+        "port": 6000,
+        "action": "BLOCK",
+        "priority": 10,
+        "matches": 0
+    },
+    {
+        "id": 4,
+        "src_ip": "192.168.1.41",
+        "dst_ip": "192.168.1.53",
+        "protocol": "UDP",
+        "port": 6000,
+        "action": "ALLOW",
+        "priority": 1,
+        "matches": 0
+    },
+    {
+        "id": 5,
+        "src_ip": "192.168.1.41",
+        "dst_ip": "192.168.1.53",
+        "protocol": "UDP",
+        "port": 6000,
+        "action": "BLOCK",
+        "priority": 30,
+        "matches": 5
+    }
+]
