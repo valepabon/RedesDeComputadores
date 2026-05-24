@@ -113,6 +113,30 @@
     <div class="card">
         <h2>Agregar regla</h2>
 
+        <label>Nombre de la regla</label>
+        <input id="rule_name" value="Regla de flujo">
+
+        <label>Ingress Port</label>
+        <input id="ingress_port" value="ANY">
+
+        <label>MAC origen</label>
+        <input id="mac_src" value="ANY">
+
+        <label>MAC destino</label>
+        <input id="mac_dst" value="ANY">
+
+        <label>Eth Type</label>
+        <input id="eth_type" value="IPv4">
+
+        <label>VLAN ID</label>
+        <input id="vlan_id" value="ANY">
+
+        <label>VLAN Priority</label>
+        <input id="vlan_priority" value="ANY">
+
+        <label>IP ToS</label>
+        <input id="ip_tos" value="ANY">
+
         <label>IP origen</label>
         <input id="src_ip" value="ANY">
 
@@ -131,8 +155,11 @@
             <option value="ANY">ANY</option>
         </select>
 
-        <label>Puerto</label>
-        <input id="port" type="number" value="6000">
+        <label>Puerto origen TCP/UDP</label>
+        <input id="src_port" value="ANY">
+
+        <label>Puerto destino TCP/UDP</label>
+        <input id="dst_port" type="number" value="6000">
 
         <label>Acción</label>
         <select id="action">
@@ -172,13 +199,21 @@
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>Origen</th>
-                    <th>Destino</th>
-                    <th>Protocolo</th>
-                    <th>Puerto</th>
-                    <th>Acción</th>
-                    <th>Prioridad</th>
-                    <th>Coincidencias</th>
+                    <th>Nombre</th>
+                    <th>Ingress</th>
+                    <th>MAC Src</th>
+                    <th>MAC Dst</th>
+                    <th>Eth Type</th>
+                    <th>VLAN</th>
+                    <th>IP Src</th>
+                    <th>IP Dst</th>
+                    <th>IP Proto</th>
+                    <th>TCP/UDP Src</th>
+                    <th>TCP/UDP Dst</th>
+                    <th>Action</th>
+                    <th>Priority</th>
+                    <th>Packets</th>
+                    <th>Bytes</th>
                     <th>Eliminar</th>
                 </tr>
             </thead>
@@ -223,13 +258,21 @@
         table.innerHTML += `
             <tr>
                 <td>${rule.id}</td>
-                <td>${rule.src_ip}</td>
-                <td>${rule.dst_ip}</td>
-                <td>${rule.protocol}</td>
-                <td>${rule.port}</td>
+                <td>${rule.name || '-'}</td>
+                <td>${rule.ingress_port || 'ANY'}</td>
+                <td>${rule.mac_src || 'ANY'}</td>
+                <td>${rule.mac_dst || 'ANY'}</td>
+                <td>${rule.eth_type || 'IPv4'}</td>
+                <td>${rule.vlan_id || 'ANY'}</td>
+                <td>${rule.src_ip || 'ANY'}</td>
+                <td>${rule.dst_ip || 'ANY'}</td>
+                <td>${rule.protocol || 'ANY'}</td>
+                <td>${rule.src_port || 'ANY'}</td>
+                <td>${rule.dst_port || rule.port || 'ANY'}</td>
                 <td class="${rule.action}">${rule.action}</td>
                 <td>${rule.priority}</td>
                 <td>${rule.matches || 0}</td>
+                <td>${rule.bytes || 0}</td>
                 <td>
                     <button class="delete-btn" onclick="deleteRule(${rule.id})">
                         Eliminar
@@ -312,14 +355,34 @@ function updateDstIpFromClient() {
 
 
     async function addRule() {
-    const rule = {
-        src_ip: document.getElementById('src_ip').value,
-        dst_ip: document.getElementById('dst_ip').value,
-        protocol: document.getElementById('protocol').value,
-        port: parseInt(document.getElementById('port').value),
-        action: document.getElementById('action').value,
-        priority: parseInt(document.getElementById('priority').value)
-    };
+        const dstPortValue = document.getElementById('dst_port').value;
+        const srcPortValue = document.getElementById('src_port').value;
+
+        const rule = {
+            name: document.getElementById('rule_name').value || "Regla sin nombre",
+
+            ingress_port: document.getElementById('ingress_port').value || "ANY",
+            mac_src: document.getElementById('mac_src').value || "ANY",
+            mac_dst: document.getElementById('mac_dst').value || "ANY",
+            eth_type: document.getElementById('eth_type').value || "IPv4",
+            vlan_id: document.getElementById('vlan_id').value || "ANY",
+            vlan_priority: document.getElementById('vlan_priority').value || "ANY",
+
+            src_ip: document.getElementById('src_ip').value || "ANY",
+            dst_ip: document.getElementById('dst_ip').value || "ANY",
+            protocol: document.getElementById('protocol').value || "UDP",
+
+            src_port: srcPortValue === "" ? "ANY" : srcPortValue,
+            dst_port: dstPortValue === "" ? "ANY" : parseInt(dstPortValue),
+
+            // compatibilidad
+            port: dstPortValue === "" ? "ANY" : parseInt(dstPortValue),
+
+            ip_tos: document.getElementById('ip_tos').value || "ANY",
+
+            action: document.getElementById('action').value,
+            priority: parseInt(document.getElementById('priority').value)
+        };
 
     const response = await fetch('/rules', {
         method: 'POST',
@@ -337,17 +400,28 @@ function updateDstIpFromClient() {
     loadRules();
     }
     async function resetRuleForm() {
-        const response = await fetch('/server-info');
-        const data = await response.json();
+    const response = await fetch('/server-info');
+    const data = await response.json();
 
-        document.getElementById('src_ip').value = data.server_ip;
-        document.getElementById('dst_client').value = "ANY";
-        document.getElementById('dst_ip').value = "ANY";
-        document.getElementById('protocol').value = "UDP";
-        document.getElementById('port').value = 6000;
-        document.getElementById('action').value = "ALLOW";
-        document.getElementById('priority').value = 1;
-    }
+    document.getElementById('rule_name').value = "Regla de flujo";
+
+    document.getElementById('ingress_port').value = "ANY";
+    document.getElementById('mac_src').value = "ANY";
+    document.getElementById('mac_dst').value = "ANY";
+    document.getElementById('eth_type').value = "IPv4";
+    document.getElementById('vlan_id').value = "ANY";
+    document.getElementById('vlan_priority').value = "ANY";
+    document.getElementById('ip_tos').value = "ANY";
+
+    document.getElementById('src_ip').value = data.server_ip;
+    document.getElementById('dst_client').value = "ANY";
+    document.getElementById('dst_ip').value = "ANY";
+    document.getElementById('protocol').value = "UDP";
+    document.getElementById('src_port').value = "ANY";
+    document.getElementById('dst_port').value = 6000;
+    document.getElementById('action').value = "ALLOW";
+    document.getElementById('priority').value = 1;
+}
 
     loadClientSelector();
     resetRuleForm();

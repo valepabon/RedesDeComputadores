@@ -44,13 +44,30 @@ def save_all_data():
 default_rules = [
     {
         "id": 1,
+        "name": "Permitir UDP base puerto 6000",
+
+        "ingress_port": "ANY",
+        "mac_src": "ANY",
+        "mac_dst": "ANY",
+        "eth_type": "IPv4",
+        "vlan_id": "ANY",
+        "vlan_priority": "ANY",
+
         "src_ip": "ANY",
         "dst_ip": "ANY",
         "protocol": "UDP",
+        "src_port": "ANY",
+        "dst_port": 6000,
+
         "port": 6000,
+
+        "ip_tos": "ANY",
+
         "action": "ALLOW",
         "priority": 1,
-        "matches": 0
+
+        "matches": 0,
+        "bytes": 0
     }
 ]
 
@@ -58,6 +75,41 @@ clients = load_json_file(CLIENTS_FILE, [])
 rules = load_json_file(RULES_FILE, default_rules)
 logs = load_json_file(LOGS_FILE, [])
 save_all_data()
+
+def normalize_rules():
+    for rule in rules:
+        rule.setdefault("name", f"Regla {rule.get('id', '')}")
+
+        rule.setdefault("ingress_port", "ANY")
+        rule.setdefault("mac_src", "ANY")
+        rule.setdefault("mac_dst", "ANY")
+        rule.setdefault("eth_type", "IPv4")
+        rule.setdefault("vlan_id", "ANY")
+        rule.setdefault("vlan_priority", "ANY")
+
+        rule.setdefault("src_ip", "ANY")
+        rule.setdefault("dst_ip", "ANY")
+        rule.setdefault("protocol", "UDP")
+
+        rule.setdefault("src_port", "ANY")
+
+        if "dst_port" not in rule:
+            rule["dst_port"] = rule.get("port", "ANY")
+
+        if "port" not in rule:
+            rule["port"] = rule.get("dst_port", "ANY")
+
+        rule.setdefault("ip_tos", "ANY")
+
+        rule.setdefault("action", "ALLOW")
+        rule.setdefault("priority", 1)
+
+        rule.setdefault("matches", 0)
+        rule.setdefault("bytes", 0)
+
+
+normalize_rules()
+save_json_file(RULES_FILE, rules)
 
 @app.route('/')
 def home():
@@ -146,15 +198,35 @@ def add_rule():
 
     next_id = max([rule["id"] for rule in rules], default=0) + 1
 
+    dst_port = data.get("dst_port", data.get("port", 6000))
+
     rule = {
         "id": next_id,
+        "name": data.get("name", f"Regla {next_id}"),
+
+        "ingress_port": data.get("ingress_port", "ANY"),
+        "mac_src": data.get("mac_src", "ANY"),
+        "mac_dst": data.get("mac_dst", "ANY"),
+        "eth_type": data.get("eth_type", "IPv4"),
+        "vlan_id": data.get("vlan_id", "ANY"),
+        "vlan_priority": data.get("vlan_priority", "ANY"),
+
         "src_ip": data.get("src_ip", "ANY"),
         "dst_ip": data.get("dst_ip", "ANY"),
         "protocol": data.get("protocol", "UDP"),
-        "port": data.get("port", 6000),
+        "src_port": data.get("src_port", "ANY"),
+        "dst_port": dst_port,
+
+        # Compatibilidad con el cliente actual
+        "port": dst_port,
+
+        "ip_tos": data.get("ip_tos", "ANY"),
+
         "action": data.get("action", "ALLOW"),
         "priority": data.get("priority", 1),
-        "matches": 0
+
+        "matches": 0,
+        "bytes": 0
     }
 
     rules.append(rule)
@@ -166,6 +238,8 @@ def add_rule():
     return jsonify({
         "message": "Regla agregada"
     }), 200
+
+
 
 # =========================
 # REPORTES DEL CLIENTE
@@ -189,6 +263,9 @@ def report():
     # Intentar extraer el ID de la regla desde el mensaje:
     # Ejemplo: "Regla 6 coincidió | src=..."
     match = re.search(r"Regla\s+(\d+)\s+coincidió", message)
+    bytes_match = re.search(r"bytes=(\d+)", message)
+
+    packet_bytes = int(bytes_match.group(1)) if bytes_match else 0
 
     if match:
         rule_id = int(match.group(1))
@@ -196,7 +273,13 @@ def report():
         for rule in rules:
             if rule["id"] == rule_id:
                 rule["matches"] = rule.get("matches", 0) + 1
-                print(f"[COUNT] Regla {rule_id} ahora tiene {rule['matches']} coincidencia(s)")
+                rule["bytes"] = rule.get("bytes", 0) + packet_bytes
+
+                print(
+                    f"[COUNT] Regla {rule_id} ahora tiene "
+                    f"{rule['matches']} coincidencia(s) y "
+                    f"{rule['bytes']} bytes"
+                )
                 break
 
     save_json_file(LOGS_FILE, logs)

@@ -107,7 +107,7 @@ def match_rule(rule, src_ip, dst_ip, protocol, port):
     rule_src_ip = rule.get("src_ip", "ANY")
     rule_dst_ip = rule.get("dst_ip", "ANY")
     rule_protocol = rule.get("protocol", "ANY")
-    rule_port = rule.get("port", "ANY")
+    rule_port = rule.get("dst_port", rule.get("port", "ANY"))
 
     if rule_src_ip != "ANY" and rule_src_ip != src_ip:
         return False
@@ -132,12 +132,13 @@ def evaluate_packet(src_ip, dst_ip, protocol, port, payload):
     for rule in rules:
         if match_rule(rule, src_ip, dst_ip, protocol, port):
             action = rule.get("action", "ALLOW").upper()
+            payload_bytes = len(payload.encode("utf-8"))
 
             event = (
                 f"Regla {rule.get('id')} coincidió | "
                 f"src={src_ip} dst={dst_ip} "
-                f"proto={protocol} port={port} "
-                f"action={action} payload={payload}"
+                f"proto={protocol} dst_port={port} "
+                f"action={action} bytes={payload_bytes} payload={payload}"
             )
 
             if action == "ALLOW":
@@ -155,11 +156,13 @@ def evaluate_packet(src_ip, dst_ip, protocol, port, payload):
                 send_report(event)
                 return "REPORT"
 
+    payload_bytes = len(payload.encode("utf-8"))
+
     event = (
         f"Sin coincidencia | "
         f"src={src_ip} dst={dst_ip} "
-        f"proto={protocol} port={port} "
-        f"action=ALLOW_DEFAULT payload={payload}"
+        f"proto={protocol} dst_port={port} "
+        f"action=ALLOW_DEFAULT bytes={payload_bytes} payload={payload}"
     )
 
     print("[ALLOW_DEFAULT]", event)
